@@ -1,9 +1,372 @@
 [
   {
-    "id": "template",
+    "id": "tab-peThanos",
     "type": "tab",
     "label": "PeThanos Flow",
     "disabled": false,
-    "info": ""
+    "info": "PeThanos Smart Farm - Node-RED Cloud Flow (HiveMQ)"
+  },
+  {
+    "id": "mqttBrokerCfg",
+    "type": "mqtt-broker",
+    "name": "HiveMQ Cloud (TLS)",
+    "broker": "83444876987b402b9053db627efeda74.s1.eu.hivemq.cloud",
+    "port": "8883",
+    "clientid": "nodeRed-Pethanos",
+    "usetls": true,
+    "compatmode": true,
+    "keepalive": "60",
+    "cleansession": true,
+    "protocolVersion": "4",
+    "birthTopic": "pethanos/esp32-1/status",
+    "birthQos": "1",
+    "birthPayload": "online",
+    "closeTopic": "pethanos/esp32-1/status",
+    "closePayload": "offline",
+    "willTopic": "pethanos/esp32-1/status",
+    "willQos": "1",
+    "willPayload": "offline",
+    "clientId": "",
+    "ssl": "",
+    "credentials": {
+      "user": "pethanosesp1",
+      "password": "1210hrdN"
+    }
+  },
+  {
+    "id": "mqtt-in-telemetry",
+    "type": "mqtt in",
+    "z": "tab-peThanos",
+    "name": "telemetry in",
+    "topic": "pethanos/esp32-1/telemetry",
+    "qos": "0",
+    "broker": "mqttBrokerCfg",
+    "nl": false,
+    "datatype": "json",
+    "x": 160,
+    "y": 120,
+    "wires": [
+      [
+        "fn-parseTelemetry",
+        "file-log-csv"
+      ]
+    ]
+  },
+  {
+    "id": "fn-parseTelemetry",
+    "type": "function",
+    "z": "tab-peThanos",
+    "name": "parse telemetry",
+    "func": "// expects payload {device, ppm, raw, pump, uptime}\nlet p = msg.payload || {};\nlet ppm = Number(p.ppm) || 0;\nlet raw = Number(p.raw) || 0;\nlet pump = (Number(p.pump) || 0) === 1 ? 'ON' : 'OFF';\nmsg.payload = { device: (p.device||'esp32-1'), ppm: ppm, raw: raw, pump: pump, uptime: Number(p.uptime)||0, ts: Date.now() };\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 360,
+    "y": 120,
+    "wires": [
+      [
+        "ui-gauge-ppm",
+        "ui-chart-ppm",
+        "ui-text-pump",
+        "debug-telemetry"
+      ]
+    ]
+  },
+  {
+    "id": "ui-gauge-ppm",
+    "type": "ui_gauge",
+    "z": "tab-peThanos",
+    "name": "PPM Gauge",
+    "group": "uiGroup-main",
+    "order": 1,
+    "width": 6,
+    "height": 3,
+    "gtype": "gage",
+    "title": "TDS PPM",
+    "label": "ppm",
+    "format": "{{value}}",
+    "min": 0,
+    "max": "2000",
+    "colors": [
+      "#00b500",
+      "#e6e600",
+      "#ca3838"
+    ],
+    "seg1": "",
+    "seg2": "",
+    "x": 600,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "ui-chart-ppm",
+    "type": "ui_chart",
+    "z": "tab-peThanos",
+    "name": "PPM Chart",
+    "group": "uiGroup-main",
+    "order": 2,
+    "width": 12,
+    "height": 4,
+    "label": "PPM (last 60 samples)",
+    "chartType": "line",
+    "legend": "true",
+    "xformat": "HH:mm:ss",
+    "interpolate": "linear",
+    "nodata": "",
+    "dot": false,
+    "ymin": "0",
+    "ymax": "2000",
+    "removeOlder": "60",
+    "removeOlderUnit": "60",
+    "cutout": 0,
+    "useOneColor": false,
+    "colors": [
+      "#00b500",
+      "#e6e600",
+      "#ca3838"
+    ],
+    "useOldStyle": false,
+    "x": 600,
+    "y": 140,
+    "wires": [
+      [],
+      []
+    ]
+  },
+  {
+    "id": "ui-text-pump",
+    "type": "ui_text",
+    "z": "tab-peThanos",
+    "group": "uiGroup-main",
+    "order": 3,
+    "width": 6,
+    "height": 1,
+    "name": "Pump Status",
+    "label": "Pump",
+    "format": "{{msg.payload.pump}}",
+    "layout": "row-spread",
+    "x": 600,
+    "y": 200,
+    "wires": []
+  },
+  {
+    "id": "debug-telemetry",
+    "type": "debug",
+    "z": "tab-peThanos",
+    "name": "telemetry debug",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "x": 820,
+    "y": 120,
+    "wires": []
+  },
+  {
+    "id": "file-log-csv",
+    "type": "file",
+    "z": "tab-peThanos",
+    "name": "log CSV",
+    "filename": "tds_log.csv",
+    "appendNewline": true,
+    "createDir": false,
+    "overwriteFile": "false",
+    "encoding": "utf8",
+    "x": 540,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "fn-csvline",
+    "type": "function",
+    "z": "tab-peThanos",
+    "name": "to CSV line",
+    "func": "let p = msg.payload;\nlet d = new Date(p.ts||Date.now()).toISOString();\nlet line = `${d},${p.device||'esp32-1'},${p.ppm||0},${p.raw||0},${p.pump||'OFF'},${p.uptime||0}\\n`;\nmsg.payload = line;\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 360,
+    "y": 40,
+    "wires": [
+      [
+        "file-log-csv"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt-out-cmd",
+    "type": "mqtt out",
+    "z": "tab-peThanos",
+    "name": "publish cmd",
+    "topic": "",
+    "qos": "",
+    "retain": "",
+    "broker": "mqttBrokerCfg",
+    "x": 640,
+    "y": 380,
+    "wires": []
+  },
+  {
+    "id": "ui-btn-pump-on",
+    "type": "ui_button",
+    "z": "tab-peThanos",
+    "name": "Pump ON",
+    "group": "uiGroup-main",
+    "order": 10,
+    "width": 3,
+    "height": 1,
+    "passthru": false,
+    "label": "PUMP ON",
+    "tooltip": "Send pump ON",
+    "color": "",
+    "bgcolor": "",
+    "className": "",
+    "x": 140,
+    "y": 340,
+    "wires": [
+      [
+        "fn-payload-on"
+      ]
+    ]
+  },
+  {
+    "id": "ui-btn-pump-off",
+    "type": "ui_button",
+    "z": "tab-peThanos",
+    "name": "Pump OFF",
+    "group": "uiGroup-main",
+    "order": 11,
+    "width": 3,
+    "height": 1,
+    "passthru": false,
+    "label": "PUMP OFF",
+    "tooltip": "Send pump OFF",
+    "color": "",
+    "bgcolor": "",
+    "className": "",
+    "x": 140,
+    "y": 380,
+    "wires": [
+      [
+        "fn-payload-off"
+      ]
+    ]
+  },
+  {
+    "id": "fn-payload-on",
+    "type": "function",
+    "z": "tab-peThanos",
+    "name": "payload ON",
+    "func": "msg.topic = 'pethanos/esp32-1/cmd';\nmsg.payload = JSON.stringify({cmd:'pump', state:'on'});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 360,
+    "y": 340,
+    "wires": [
+      [
+        "mqtt-out-cmd"
+      ]
+    ]
+  },
+  {
+    "id": "fn-payload-off",
+    "type": "function",
+    "z": "tab-peThanos",
+    "name": "payload OFF",
+    "func": "msg.topic = 'pethanos/esp32-1/cmd';\nmsg.payload = JSON.stringify({cmd:'pump', state:'off'});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 360,
+    "y": 380,
+    "wires": [
+      [
+        "mqtt-out-cmd"
+      ]
+    ]
+  },
+  {
+    "id": "ui-num-setpoint",
+    "type": "ui_numeric",
+    "z": "tab-peThanos",
+    "name": "Setpoint (ppm)",
+    "label": "Setpoint PPM",
+    "group": "uiGroup-main",
+    "order": 12,
+    "width": 3,
+    "height": 1,
+    "min": 0,
+    "max": 2000,
+    "step": 1,
+    "x": 140,
+    "y": 440,
+    "wires": [
+      [
+        "fn-setpoint-payload"
+      ]
+    ]
+  },
+  {
+    "id": "fn-setpoint-payload",
+    "type": "function",
+    "z": "tab-peThanos",
+    "name": "setpoint payload",
+    "func": "let val = Number(msg.payload)||0;\nmsg.topic = 'pethanos/esp32-1/setpoint';\nmsg.payload = JSON.stringify({setpoint: val});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 360,
+    "y": 440,
+    "wires": [
+      [
+        "mqtt-out-cmd"
+      ]
+    ]
+  },
+  {
+    "id": "uiTab-main",
+    "type": "ui_tab",
+    "z": "",
+    "name": "Pethanos TDS",
+    "icon": "dashboard",
+    "order": 1,
+    "disabled": false,
+    "hidden": false
+  },
+  {
+    "id": "uiGroup-main",
+    "type": "ui_group",
+    "z": "",
+    "name": "Main",
+    "tab": "uiTab-main",
+    "order": 1,
+    "disp": true,
+    "width": "12",
+    "collapse": false
+  },
+  {
+    "id": "inject-start-status",
+    "type": "inject",
+    "z": "tab-peThanos",
+    "name": "startup ping",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "3",
+    "payload": "",
+    "topic": "",
+    "x": 160,
+    "y": 40,
+    "wires": [
+      [
+        "mqtt-out-cmd"
+      ]
+    ]
   }
 ]
