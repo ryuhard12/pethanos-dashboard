@@ -1,0 +1,12 @@
+{
+  "name": "pethanos-dashboard",
+  "version": "1.0.0",
+  "description": "PeThanos Smart Farm Dashboard (Node-RED on Render)",
+  "scripts": {
+    "start": "node-red -v"
+  },
+  "dependencies": {
+    "node-red": "^4.1.1",
+    "node-red-dashboard": "^3.6.6"
+  }
+}
