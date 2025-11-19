@@ -1,0 +1,299 @@
+[{
+    "id": "mqtt_broker",
+    "type": "mqtt-broker",
+    "name": "HiveMQ Cloud",
+    "broker": "83444876987b402b9053db627efeda74.s1.eu.hivemq.cloud",
+    "port": "8883",
+    "clientid": "node-red-celeryo",
+    "usetls": true,
+    "tls": "mqtt_tls_config",
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true
+  },
+  {
+    "id": "mqtt_tls_config",
+    "type": "tls-config",
+    "name": "HiveMQ TLS",
+    "cert": "",
+    "key": "",
+    "passphrase": "",
+    "servername": "",
+    "verifyservercert": false
+  },
+  {
+    "id": "ui_tab",
+    "type": "ui_tab",
+    "name": "Sprayer",
+    "icon": "dashboard",
+    "order": 1
+  },
+  {
+    "id": "ui_group_control",
+    "type": "ui_group",
+    "name": "Control",
+    "tab": "ui_tab",
+    "order": 1,
+    "width": 6
+  },
+  {
+    "id": "ui_group_history",
+    "type": "ui_group",
+    "name": "History",
+    "tab": "ui_tab",
+    "order": 2,
+    "width": 12
+  },
+  {
+    "id": "mqtt_in_history",
+    "type": "mqtt in",
+    "z": "flow1",
+    "name": "history in",
+    "topic": "celeryo/spray/history",
+    "qos": "0",
+    "broker": "mqtt_broker",
+    "x": 180,
+    "y": 200,
+    "wires": [["fn_store_history","debug_history"]]
+  },
+  {
+    "id": "fn_store_history",
+    "type": "function",
+    "z": "flow1",
+    "name": "store last 10 history",
+    "func": "// msg.payload is JSON from ESP
+var h = flow.get('history') || [];
+try{
+  var obj = (typeof msg.payload === 'object') ? msg.payload : JSON.parse(msg.payload);
+}catch(e){
+  node.warn('invalid history payload');
+  return null;
+}
+// push & keep last 10
+h.unshift(obj);
+if(h.length>10) h = h.slice(0,10);
+flow.set('history', h);
+// send to UI table
+msg.payload = h;
+return msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "x": 420,
+    "y": 200,
+    "wires": [["ui_template_history"]]
+  },
+  {
+    "id": "ui_template_history",
+    "type": "ui_template",
+    "z": "flow1",
+    "group": "ui_group_history",
+    "name": "History table",
+    "format": "<table style=\"width:100%\">\n<thead><tr><th>Time</th><th>Src</th><th>Areas</th><th>Req(s)</th><th>Act(s)</th><th>Result</th></tr></thead>\n<tbody>\n  <tr ng-repeat=\"row in msg.payload\">\n    <td>{{row.ts}}</td>\n    <td>{{row.source}}</td>\n    <td>{{row.areas.join(',')}}</td>\n    <td>{{row.dur_req_s}}</td>\n    <td>{{row.dur_used_s}}</td>\n    <td>{{row.result}}</td>\n  </tr>\n</tbody>\n</table>",
+    "storeOutMessages": true,
+    "fwdInMessages": true,
+    "resendOnRefresh": true,
+    "templateScope": "local",
+    "x": 660,
+    "y": 200,
+    "wires": []
+  },
+  {
+    "id": "debug_history",
+    "type": "debug",
+    "z": "flow1",
+    "name": "history dbg",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "x": 430,
+    "y": 140,
+    "wires": []
+  },
+  {
+    "id": "ui_form_manual",
+    "type": "ui_form",
+    "z": "flow1",
+    "name": "Manual Spray",
+    "label": "Manual Spray (areas 1..4)\nareas as array, dur_ms optional",
+    "group": "ui_group_control",
+    "order": 1,
+    "width": 0,
+    "height": 0,
+    "options": [{"label":"areas","value":"areas","type":"text"},{"label":"dur_ms","value":"dur_ms","type":"number"}],
+    "formValue": {},
+    "topic": "",
+    "x": 200,
+    "y": 80,
+    "wires": [["fn_build_manual","debug_manual"]]
+  },
+  {
+    "id": "fn_build_manual",
+    "type": "function",
+    "z": "flow1",
+    "name": "build manual msg",
+    "func": "// form gives msg.payload as object: {areas:'[1,2]', dur_ms:15000}
+var p = msg.payload || {};
+var out = {cmd:'single'};
+try{
+  // allow user to input comma sep or JSON array
+  var areas = p.areas;
+  if(typeof areas === 'string'){
+    areas = areas.trim();
+    if(areas.startsWith('[')) areas = JSON.parse(areas);
+    else areas = areas.split(',').map(function(v){return parseInt(v)}).filter(Boolean);
+  }
+  out.areas = areas;
+}catch(e){ out.areas = [] }
+if(p.dur_ms) out.dur_ms = parseInt(p.dur_ms);
+msg.payload = JSON.stringify(out);
+msg.topic = 'celeryo/spray/control';
+return msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 420,
+    "y": 80,
+    "wires": [["mqtt_out_control"]]
+  },
+  {
+    "id": "mqtt_out_control",
+    "type": "mqtt out",
+    "z": "flow1",
+    "name": "publish control",
+    "topic": "",
+    "qos": "0",
+    "retain": "false",
+    "broker": "mqtt_broker",
+    "x": 640,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "debug_manual",
+    "type": "debug",
+    "z": "flow1",
+    "name": "manual dbg",
+    "active": false,
+    "tosidebar": true,
+    "complete": "payload",
+    "x": 420,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "ui_button_abort",
+    "type": "ui_button",
+    "z": "flow1",
+    "name": "ABORT",
+    "group": "ui_group_control",
+    "order": 3,
+    "width": 3,
+    "height": 1,
+    "passthru": false,
+    "label": "ABORT",
+    "color": "white",
+    "bgcolor": "red",
+    "topic": "celeryo/spray/abort",
+    "payload": "1",
+    "payloadType": "str",
+    "x": 200,
+    "y": 140,
+    "wires": [["mqtt_out_abort"]]
+  },
+  {
+    "id": "mqtt_out_abort",
+    "type": "mqtt out",
+    "z": "flow1",
+    "name": "publish abort",
+    "topic": "",
+    "qos": "0",
+    "retain": "false",
+    "broker": "mqtt_broker",
+    "x": 420,
+    "y": 140,
+    "wires": []
+  },
+  {
+    "id": "ui_group_area",
+    "type": "ui_group",
+    "name": "Areas",
+    "tab": "ui_tab",
+    "order": 3,
+    "width": 6
+  },
+  {
+    "id": "ui_switches_areas",
+    "type": "ui_template",
+    "z": "flow1",
+    "group": "ui_group_area",
+    "name": "Area switches",
+    "order": 1,
+    "width": 6,
+    "height": 1,
+    "format": "<div ng-init=\"areas=[true,true,true,true]\">\n  <md-button class=\"md-raised md-primary\" ng-click=\"areas[0]=!areas[0];send()\">Area1: {{areas[0]?'ON':'OFF'}}</md-button>\n  <md-button class=\"md-raised md-primary\" ng-click=\"areas[1]=!areas[1];send()\">Area2: {{areas[1]?'ON':'OFF'}}</md-button>\n  <md-button class=\"md-raised md-primary\" ng-click=\"areas[2]=!areas[2];send()\">Area3: {{areas[2]?'ON':'OFF'}}</md-button>\n  <md-button class=\"md-raised md-primary\" ng-click=\"areas[3]=!areas[3];send()\">Area4: {{areas[3]?'ON':'OFF'}}</md-button>\n  <script>\n    function send(){\n      var msg={payload: {mask: [(areas[0]?1:0),(areas[1]?1:0),(areas[2]?1:0),(areas[3]?1:0)]}};\n      var payload = JSON.stringify({cmd:'areas_enable', mask: msg.payload.mask});\n      // publish via event
+      var ev = new CustomEvent('node-red-publish', {detail:{topic:'celeryo/spray/areas/enable', payload:payload}});
+      window.dispatchEvent(ev);\n    }\n    window.addEventListener('node-red-publish', function(e){ /* no-op, handled by flow */ });\n  </script>",
+    "storeOutMessages": true,
+    "fwdInMessages": true,
+    "templateScope": "local",
+    "x": 200,
+    "y": 260,
+    "wires": [["mqtt_out_areas"]]
+  },
+  {
+    "id": "mqtt_out_areas",
+    "type": "mqtt out",
+    "z": "flow1",
+    "name": "areas enable",
+    "topic": "",
+    "qos": "0",
+    "retain": "false",
+    "broker": "mqtt_broker",
+    "x": 440,
+    "y": 260,
+    "wires": []
+  },
+  {
+    "id": "ui_text_status",
+    "type": "ui_text",
+    "z": "flow1",
+    "group": "ui_group_control",
+    "order": 2,
+    "width": 6,
+    "height": 1,
+    "name": "ESP status",
+    "label": "ESP Status",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "x": 200,
+    "y": 200,
+    "wires": []
+  },
+  {
+    "id": "mqtt_in_status",
+    "type": "mqtt in",
+    "z": "flow1",
+    "name": "status in",
+    "topic": "pethanos/esp32-1/status",
+    "qos": "0",
+    "broker": "mqtt_broker",
+    "x": 180,
+    "y": 200,
+    "wires": [["ui_text_status"]]
+  },
+  {
+    "id": "debug_in",
+    "type": "debug",
+    "z": "flow1",
+    "name": "in dbg",
+    "active": false,
+    "tosidebar": true,
+    "complete": "true",
+    "x": 660,
+    "y": 320,
+    "wires": []
+  }
+]
