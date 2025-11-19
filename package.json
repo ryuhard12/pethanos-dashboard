@@ -1,12 +1,12 @@
 {
-  "name": "pethanos-dashboard",
-  "version": "1.0.0",
-  "description": "PeThanos Smart Farm Dashboard (Node-RED on Render)",
+  "name": "node-red-celeryo",
+  "version": "0.0.1",
+  "description": "Node-RED project for Celeryo sprayer dashboard",
   "scripts": {
-    "start": "node-red -v"
+    "start": "node-red --userDir ./data"
   },
   "dependencies": {
-    "node-red": "^4.1.1",
-    "node-red-dashboard": "^3.6.6"
+    "node-red": "^3.1.0",
+    "node-red-dashboard": "^3.1.0"
   }
 }
